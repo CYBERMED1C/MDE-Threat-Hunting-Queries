@@ -1,0 +1,114 @@
+// CAV3RN Threat Hunting - Microsoft Defender for Endpoint Advanced Hunting
+// Source: https://securelist.com/project-cav3rn-continues/120991/
+// Source: https://thehackernews.com/2026/08/cavern-c2-uses-dns-and-google-apps.html
+// Hunt coverage: Published CAV3RN MD5 hashes, StudioTikva infrastructure, DNS-based C2 patterns, and correlated Google Apps Script activity
+// Author: CYBERMEDIC
+let lookback = 30d;
+let CavernMD5 = dynamic([
+    "904784c9943d019da332bea2cd03996f",
+    "f9156d42410c8a5429dec43329bd72e0",
+    "2dcd4a8ac166404977cd3c48418a8cd9",
+    "981c7404d31b8ce35ec88a6b290f354d",
+    "34d50eec364d920b8b5d885c9bc98607"
+]);
+let CavernIPs = dynamic([
+    "144.172.115.17",
+    "144.172.104.82"
+]);
+let NetworkHits =
+    DeviceNetworkEvents
+    | where Timestamp >= ago(lookback)
+    | where RemoteIP in (CavernIPs)
+        or RemoteUrl contains "studiotikva.com"
+    | extend MatchReason = case(
+        RemoteIP in (CavernIPs), "Known CAV3RN infrastructure IP",
+        RemoteUrl contains ".m.studiotikva.com", "CAV3RN DNS C2 channel-selection query",
+        RemoteUrl contains ".q.studiotikva.com", "CAV3RN Apps Script deployment-ID validation query",
+        RemoteUrl contains ".p.studiotikva.com", "CAV3RN Apps Script deployment-ID recovery query",
+        RemoteUrl contains "api.studiotikva.com", "Known CAV3RN direct HTTPS C2 domain",
+        "Known CAV3RN StudioTikva infrastructure"
+    )
+    | extend Confidence = "High"
+    | project
+        Timestamp,
+        DeviceId,
+        DeviceName,
+        ActionType,
+        Confidence,
+        MatchReason,
+        FileName = "",
+        FolderPath = "",
+        MD5 = "",
+        RemoteUrl,
+        RemoteIP,
+        InitiatingProcessFileName,
+        InitiatingProcessCommandLine;
+let FileHits =
+    DeviceFileEvents
+    | where Timestamp >= ago(lookback)
+    | where MD5 in (CavernMD5)
+    | extend Confidence = "High"
+    | extend MatchReason = "Known CAV3RN MD5"
+    | project
+        Timestamp,
+        DeviceId,
+        DeviceName,
+        ActionType,
+        Confidence,
+        MatchReason,
+        FileName,
+        FolderPath,
+        MD5,
+        RemoteUrl = "",
+        RemoteIP = "",
+        InitiatingProcessFileName,
+        InitiatingProcessCommandLine;
+let ImageLoadHits =
+    DeviceImageLoadEvents
+    | where Timestamp >= ago(lookback)
+    | where MD5 in (CavernMD5)
+    | extend Confidence = "High"
+    | extend MatchReason = "Known CAV3RN DLL MD5 loaded"
+    | project
+        Timestamp,
+        DeviceId,
+        DeviceName,
+        ActionType,
+        Confidence,
+        MatchReason,
+        FileName,
+        FolderPath,
+        MD5,
+        RemoteUrl = "",
+        RemoteIP = "",
+        InitiatingProcessFileName,
+        InitiatingProcessCommandLine;
+let CoreHits =
+    union NetworkHits, FileHits, ImageLoadHits;
+let SuspectDevices =
+    CoreHits
+    | distinct DeviceId;
+let GoogleAppsScriptHits =
+    DeviceNetworkEvents
+    | where Timestamp >= ago(lookback)
+    | where DeviceId in (SuspectDevices)
+    | where RemoteUrl contains "script.google.com"
+        or RemoteUrl contains "script.googleusercontent.com"
+    | extend Confidence = "Correlated"
+    | extend MatchReason = "Google Apps Script activity on device with CAV3RN indicator"
+    | project
+        Timestamp,
+        DeviceId,
+        DeviceName,
+        ActionType,
+        Confidence,
+        MatchReason,
+        FileName = "",
+        FolderPath = "",
+        MD5 = "",
+        RemoteUrl,
+        RemoteIP,
+        InitiatingProcessFileName,
+        InitiatingProcessCommandLine;
+union CoreHits, GoogleAppsScriptHits
+| order by Timestamp desc
