@@ -1,0 +1,82 @@
+// Polyfill.io Supply Chain Compromise & Malicious Redirect Activity - MDE Threat Hunt
+// Source: Security Affairs - Polyfill.io Supply Chain Attack
+// https://securityaffairs.com/165302/hacking/polyfill-io-supply-chain-attack.html
+// High = observed malicious redirect infrastructure
+// Exposure = connection to compromised Polyfill CDN
+// Elevated = infrastructure independently observed exhibiting similar malicious behavior
+// Medium = additional infrastructure associated with the same actor; investigate before attribution
+// Author: CYBERMEDIC
+let lookback = 30d;
+let DomainMatch = (host:string, domain:string) {
+    host == domain or host endswith strcat(".", domain)
+};
+DeviceNetworkEvents
+| where Timestamp >= ago(lookback)
+| where isnotempty(RemoteUrl)
+| extend NormalizedUrl = iff(
+    RemoteUrl startswith "http://" or RemoteUrl startswith "https://",
+    RemoteUrl,
+    strcat("https://", RemoteUrl)
+)
+| extend RemoteHost = tolower(tostring(parse_url(NormalizedUrl).Host))
+| extend Confidence = case(
+    DomainMatch(RemoteHost, "googie-anaiytics.com"), "High",
+    DomainMatch(RemoteHost, "kuurza.com"), "High",
+    DomainMatch(RemoteHost, "cdn.polyfill.io"), "Exposure",
+    DomainMatch(RemoteHost, "cdn.polyfill.com"), "Exposure",
+    DomainMatch(RemoteHost, "bootcss.com"), "Elevated",
+    DomainMatch(RemoteHost, "bootcdn.net"), "Medium",
+    DomainMatch(RemoteHost, "staticfile.net"), "Medium",
+    DomainMatch(RemoteHost, "staticfile.org"), "Medium",
+    DomainMatch(RemoteHost, "unionadjs.com"), "Medium",
+    DomainMatch(RemoteHost, "xhsbpza.com"), "Medium",
+    DomainMatch(RemoteHost, "union.macoms.la"), "Medium",
+    DomainMatch(RemoteHost, "newcrbpc.com"), "Medium",
+    ""
+)
+| where isnotempty(Confidence)
+| extend MatchReason = case(
+    DomainMatch(RemoteHost, "googie-anaiytics.com"), "Known malicious JavaScript and redirect infrastructure associated with Polyfill.io compromise",
+    DomainMatch(RemoteHost, "kuurza.com"), "Known malicious redirect infrastructure associated with Polyfill.io compromise",
+    DomainMatch(RemoteHost, "cdn.polyfill.io"), "Exposure to compromised Polyfill.io JavaScript CDN",
+    DomainMatch(RemoteHost, "cdn.polyfill.com"), "Exposure to Polyfill CDN identified during supply chain investigation",
+    DomainMatch(RemoteHost, "bootcss.com"), "Associated CDN observed exhibiting malicious behavior similar to Polyfill.io compromise",
+    DomainMatch(RemoteHost, "bootcdn.net"), "Infrastructure associated with actor behind Polyfill.io campaign",
+    DomainMatch(RemoteHost, "staticfile.net"), "Infrastructure associated with actor behind Polyfill.io campaign",
+    DomainMatch(RemoteHost, "staticfile.org"), "Infrastructure associated with actor behind Polyfill.io campaign",
+    DomainMatch(RemoteHost, "unionadjs.com"), "Infrastructure associated with actor behind Polyfill.io campaign",
+    DomainMatch(RemoteHost, "xhsbpza.com"), "Infrastructure associated with actor behind Polyfill.io campaign",
+    DomainMatch(RemoteHost, "union.macoms.la"), "Infrastructure associated with actor behind Polyfill.io campaign",
+    DomainMatch(RemoteHost, "newcrbpc.com"), "Infrastructure associated with actor behind Polyfill.io campaign",
+    "Polyfill.io-related activity"
+)
+| extend KnownMaliciousResource = case(
+    DomainMatch(RemoteHost, "googie-anaiytics.com") and RemoteUrl contains "/analytics.js", "analytics.js",
+    DomainMatch(RemoteHost, "googie-anaiytics.com") and RemoteUrl contains "/html/checkcachehw.js", "checkcachehw.js",
+    DomainMatch(RemoteHost, "googie-anaiytics.com") and RemoteUrl contains "/gtags.js", "gtags.js",
+    DomainMatch(RemoteHost, "googie-anaiytics.com") and RemoteUrl contains "/keywords/vn-keyword.json", "vn-keyword.json",
+    DomainMatch(RemoteHost, "googie-anaiytics.com") and RemoteUrl contains "/webs-1.0.1.js", "webs-1.0.1.js",
+    DomainMatch(RemoteHost, "googie-anaiytics.com") and RemoteUrl contains "/webs-1.0.2.js", "webs-1.0.2.js",
+    DomainMatch(RemoteHost, "googie-anaiytics.com") and RemoteUrl contains "/ga.js", "ga.js",
+    DomainMatch(RemoteHost, "googie-anaiytics.com") and RemoteUrl contains "/web-1.0.1.js", "web-1.0.1.js",
+    DomainMatch(RemoteHost, "googie-anaiytics.com") and RemoteUrl contains "/web.js", "web.js",
+    DomainMatch(RemoteHost, "googie-anaiytics.com") and RemoteUrl contains "/collect.js", "collect.js",
+    DomainMatch(RemoteHost, "kuurza.com") and RemoteUrl contains "/redirect", "Known redirect path",
+    ""
+)
+| project
+    Timestamp,
+    DeviceName,
+    DeviceId,
+    Confidence,
+    MatchReason,
+    KnownMaliciousResource,
+    RemoteHost,
+    RemoteUrl,
+    RemoteIP,
+    RemotePort,
+    Protocol,
+    ActionType,
+    InitiatingProcessFileName,
+    InitiatingProcessCommandLine
+| order by Timestamp desc
