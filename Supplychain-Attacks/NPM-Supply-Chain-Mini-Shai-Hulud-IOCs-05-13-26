@@ -1,4 +1,4 @@
-// Query Name: MDE_SupplyChain_Mini_Shai_Hulud_IOC_Only
+// MDE_SupplyChain_Mini_Shai_Hulud_IOC_Only
 // Source: https://thehackernews.com/2026/05/mini-shai-hulud-worm-compromises.html
 // Purpose: Hunt for Mini Shai-Hulud / TeamPCP activity using only reported IOCs and unique campaign artifacts.
 // Source Type: Public reporting / TLP:CLEAR research
