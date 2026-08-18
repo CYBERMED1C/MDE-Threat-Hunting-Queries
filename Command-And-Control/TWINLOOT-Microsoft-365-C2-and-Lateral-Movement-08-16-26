@@ -1,0 +1,62 @@
+// TWINLOOT - MDE TTP Hunt
+// TLP:CLEAR
+// Focus: PowerShell delivery, suspicious Python runtime, headless Edge/CDP, Microsoft 365 C2, Teams TURN relay abuse, reverse SOCKS5 pivoting, credential-phisher assets, and persistence
+// Source: https://thehackernews.com/2026/08/twinloot-abuses-sharepoint-and-teams-to.html
+// Primary Research: https://www.ontinue.com/resource/python-implant-hiding-its-entire-c2-inside-microsoft-365-azure/
+// Primary IOC Reference: https://github.com/ontinue-research/threat-intel-iocs/blob/main/Public/2026-07-27-TWINLOOT-IOCs.md
+// Author: Robert Boettger - AKA CYBERMEDIC
+let Lookback = 30d;
+let PowerShellDelivery = DeviceProcessEvents
+| where Timestamp > ago(Lookback)
+| where FileName in~ ("powershell.exe","pwsh.exe")
+| where ProcessCommandLine contains "http://" or ProcessCommandLine contains "https://"
+| where ProcessCommandLine contains "Invoke-WebRequest" or ProcessCommandLine contains "DownloadString" or ProcessCommandLine contains "Start-BitsTransfer" or ProcessCommandLine contains "curl" or ProcessCommandLine contains "wget" or ProcessCommandLine contains " iwr " or ProcessCommandLine contains " irm "
+| project Timestamp,DeviceId,DeviceName,HuntType="Execution / PowerShell Payload Retrieval",TTP="PowerShell-based payload retrieval following social engineering",Process=FileName,ProcessPath=FolderPath,CommandLine=ProcessCommandLine,RemoteUrl="",RemoteIP="",RemotePort="",Artifact="",RegistryKey="",RegistryValueName="",RegistryValueData="",Evidence=strcat("PowerShell download behavior | Parent: ",InitiatingProcessFileName);
+let SuspiciousPython = DeviceProcessEvents
+| where Timestamp > ago(Lookback)
+| where FileName in~ ("python.exe","pythonw.exe")
+| where FolderPath contains @"\AppData\Local\" or FolderPath contains @"\AppData\Roaming\" or FolderPath contains @"\Temp\" or FolderPath startswith @"C:\ProgramData\"
+| project Timestamp,DeviceId,DeviceName,HuntType="Execution / Suspicious Python Runtime",TTP="Python runtime executing from user-writable or non-standard path",Process=FileName,ProcessPath=FolderPath,CommandLine=ProcessCommandLine,RemoteUrl="",RemoteIP="",RemotePort="",Artifact="",RegistryKey="",RegistryValueName="",RegistryValueData="",Evidence=strcat("Python runtime in suspicious path | SHA1: ",SHA1," | Parent: ",InitiatingProcessFileName);
+let HeadlessEdge = DeviceProcessEvents
+| where Timestamp > ago(Lookback)
+| where FileName =~ "msedge.exe"
+| where ProcessCommandLine contains "--headless" and ProcessCommandLine contains "--remote-debugging-port"
+| project Timestamp,DeviceId,DeviceName,HuntType="C2 / Headless Edge CDP",TTP="Headless Edge controlled through Chrome DevTools Protocol",Process=FileName,ProcessPath=FolderPath,CommandLine=ProcessCommandLine,RemoteUrl="",RemoteIP="",RemotePort="",Artifact="",RegistryKey="",RegistryValueName="",RegistryValueData="",Evidence=strcat("Edge headless + remote debugging | Launcher profile: ",iff(ProcessCommandLine contains "launcher-edge-","present","not observed")," | Parent: ",InitiatingProcessFileName);
+let EdgeGraphC2 = DeviceNetworkEvents
+| where Timestamp > ago(Lookback)
+| where InitiatingProcessFileName =~ "msedge.exe"
+| where InitiatingProcessCommandLine contains "--headless" and InitiatingProcessCommandLine contains "--remote-debugging-port"
+| where RemoteUrl contains "graph.microsoft.com"
+| project Timestamp,DeviceId,DeviceName,HuntType="C2 / Microsoft Graph via Headless Edge",TTP="SharePoint/Graph dead-drop C2 transported through victim Edge browser",Process=InitiatingProcessFileName,ProcessPath=InitiatingProcessFolderPath,CommandLine=InitiatingProcessCommandLine,RemoteUrl,RemoteIP,RemotePort=tostring(RemotePort),Artifact="",RegistryKey="",RegistryValueName="",RegistryValueData="",Evidence=strcat("Headless Edge connection to Microsoft Graph | ",RemoteIP,":",tostring(RemotePort));
+let TeamsTurn = DeviceNetworkEvents
+| where Timestamp > ago(Lookback)
+| where InitiatingProcessFileName in~ ("python.exe","pythonw.exe")
+| where RemoteUrl contains "worldaz-msit.relay.teams.microsoft.com" or RemoteUrl contains "teams.microsoft.com"
+| project Timestamp,DeviceId,DeviceName,HuntType="C2 / Microsoft Teams TURN",TTP="WebRTC DataChannel / Teams TURN relay abuse",Process=InitiatingProcessFileName,ProcessPath=InitiatingProcessFolderPath,CommandLine=InitiatingProcessCommandLine,RemoteUrl,RemoteIP,RemotePort=tostring(RemotePort),Artifact="",RegistryKey="",RegistryValueName="",RegistryValueData="",Evidence=strcat("Python process communicating with Teams infrastructure | ",RemoteUrl," | ",RemoteIP,":",tostring(RemotePort));
+let KnownInfrastructure = DeviceNetworkEvents
+| where Timestamp > ago(Lookback)
+| where RemoteUrl contains "kerteransens.sharepoint.com" or RemoteUrl contains "034e10fbc291f2ce.blob.core.windows.net" or RemoteUrl contains "sharepointx.th2ch.com" or RemoteUrl contains "lpi-web.com" or RemoteIP == "193.24.211.221"
+| project Timestamp,DeviceId,DeviceName,HuntType="TWINLOOT / Known Infrastructure",TTP="Campaign-specific infrastructure corroboration",Process=InitiatingProcessFileName,ProcessPath=InitiatingProcessFolderPath,CommandLine=InitiatingProcessCommandLine,RemoteUrl,RemoteIP,RemotePort=tostring(RemotePort),Artifact="",RegistryKey="",RegistryValueName="",RegistryValueData="",Evidence=strcat("Known TWINLOOT infrastructure | ",RemoteUrl," | ",RemoteIP,":",tostring(RemotePort));
+let LateralMovement = DeviceNetworkEvents
+| where Timestamp > ago(Lookback)
+| where InitiatingProcessFileName =~ "pythonw.exe"
+| where RemoteIPType =~ "Private"
+| where RemotePort in (445,3389,5985,5986,22,1433,135,389)
+| summarize FirstSeen=min(Timestamp),LastSeen=max(Timestamp),RemoteIPs=make_set(RemoteIP,64),RemotePorts=make_set(RemotePort,16),ConnectionCount=count() by DeviceId,DeviceName,InitiatingProcessUniqueId,Process=InitiatingProcessFileName,ProcessPath=InitiatingProcessFolderPath,CommandLine=InitiatingProcessCommandLine,TimeWindow=bin(Timestamp,15m)
+| where array_length(RemoteIPs) >= 2
+| project Timestamp=FirstSeen,DeviceId,DeviceName,HuntType="Lateral Movement / Reverse SOCKS5 Pivot",TTP="pythonw.exe fan-out to internal administrative services through reverse SOCKS5",Process,ProcessPath,CommandLine,RemoteUrl="",RemoteIP=tostring(RemoteIPs),RemotePort=tostring(RemotePorts),Artifact="",RegistryKey="",RegistryValueName="",RegistryValueData="",Evidence=strcat("pythonw.exe connected to multiple internal systems | Connections: ",tostring(ConnectionCount)," | LastSeen: ",tostring(LastSeen));
+let CredentialPhisherAssets = DeviceNetworkEvents
+| where Timestamp > ago(Lookback)
+| where InitiatingProcessFileName in~ ("python.exe","pythonw.exe")
+| where RemoteUrl contains "raw.githubusercontent.com" or RemoteUrl contains "github.com" or RemoteUrl contains "i.postimg.cc"
+| project Timestamp,DeviceId,DeviceName,HuntType="Credential Access / Fake Lock Screen Assets",TTP="Non-browser retrieval of resources used by fake Windows lock-screen credential capture",Process=InitiatingProcessFileName,ProcessPath=InitiatingProcessFolderPath,CommandLine=InitiatingProcessCommandLine,RemoteUrl,RemoteIP,RemotePort=tostring(RemotePort),Artifact="",RegistryKey="",RegistryValueName="",RegistryValueData="",Evidence=strcat("Python retrieved external lock-screen resources | ",RemoteUrl);
+let FileArtifacts = DeviceFileEvents
+| where Timestamp > ago(Lookback)
+| where FileName in~ ("bootstrap-fat.pyc","NTUSER.MAN","Config.sct",".reobf.manifest")
+| project Timestamp,DeviceId,DeviceName,HuntType=case(FileName =~ "NTUSER.MAN","Persistence / Mandatory Profile Hive",FileName =~ "Config.sct","Persistence / COM Scriptlet",FileName =~ ".reobf.manifest","Implant Self-Update Artifact","TWINLOOT Loader Artifact"),TTP=case(FileName =~ "NTUSER.MAN","Offline-forged NTUSER.MAN mandatory-profile persistence",FileName =~ "Config.sct","TypeLib COM scriptlet hijacking",FileName =~ ".reobf.manifest","TWINLOOT implant self-update mechanism","Compiled Python stage-0 loader"),Process=InitiatingProcessFileName,ProcessPath=InitiatingProcessFolderPath,CommandLine=InitiatingProcessCommandLine,RemoteUrl="",RemoteIP="",RemotePort="",Artifact=strcat(FolderPath,@"\",FileName),RegistryKey="",RegistryValueName="",RegistryValueData="",Evidence=strcat("File event: ",ActionType," | SHA1: ",SHA1," | Size: ",tostring(FileSize));
+let PersistenceRegistry = DeviceRegistryEvents
+| where Timestamp > ago(Lookback)
+| where RegistryKey contains @"\Software\Classes\TypeLib\{EAB22AC0-30C1-11CF-A7EB-0000C05BAE0B}\1.1" or (RegistryKey contains @"\Software\Microsoft\Windows\CurrentVersion\Run" and RegistryValueName =~ "UserExperienceSync") or (RegistryKey contains @"\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Schedule\TaskCache\" and (RegistryKey contains "UserExperienceSyncTask" or InitiatingProcessFileName in~ ("python.exe","pythonw.exe")))
+| project Timestamp,DeviceId,DeviceName,HuntType=case(RegistryKey contains @"\TypeLib\","Persistence / TypeLib COM Hijack",RegistryKey contains @"\CurrentVersion\Run","Persistence / Registry Run Key","Persistence / GhostTask-Style TaskCache Manipulation"),TTP=case(RegistryKey contains @"\TypeLib\","TypeLib COM scriptlet hijacking",RegistryKey contains @"\CurrentVersion\Run","UserExperienceSync Run-key persistence","Direct TaskCache manipulation consistent with GhostTask-style persistence"),Process=InitiatingProcessFileName,ProcessPath=InitiatingProcessFolderPath,CommandLine=InitiatingProcessCommandLine,RemoteUrl="",RemoteIP="",RemotePort="",Artifact="",RegistryKey,RegistryValueName,RegistryValueData,Evidence=strcat("Registry event: ",ActionType," | ",RegistryKey," | ",RegistryValueName," = ",RegistryValueData);
+union PowerShellDelivery,SuspiciousPython,HeadlessEdge,EdgeGraphC2,TeamsTurn,KnownInfrastructure,LateralMovement,CredentialPhisherAssets,FileArtifacts,PersistenceRegistry
+| order by Timestamp desc
