@@ -1,0 +1,26 @@
+// Title: StubMaker RubyGems Typosquatting - IOC and TTP Threat Hunt
+// TLP:CLEAR
+// Description: Hunts for known indicators and behavioral TTPs associated with the StubMaker RubyGems typosquatting campaign delivering a Windows credential and cryptocurrency infostealer.
+// Source: https://thehackernews.com/2026/08/16-typosquatted-rubygems-packages-steal.html
+// Source: https://opensourcemalware.com/blog/stubmaker-rubygems-windows-infostealer
+// Author: Robert Boettger - AKA: CYBERMEDIC
+let Lookback = 30d;
+let MaliciousGemNames = dynamic(["ubnuler","ubnlder","ri18nr","reaker","rakier","orakw","joxn","ise18n","ioe18n","ie18u","iai8n","i1l8n","i18om","activesupmport","brumdler","brundlef"]);
+let KnownSHA256 = dynamic(["a280b369c95b04530af11598f15a58328722af0325509fe1c55028c3fa873111","2edf1494951ea52eb86c606212668822081b3c589b821e8ec33cde59b65141a7","6f088ade49456db2422c3edfbb9998f4a3e9cce7c4c00a7279fb45d672a82b7d","1afff50ca4064310d3492c652e1c3168216dcb42063e0b26c223038db46b8731","67719fa6fcaa97936bf678565d6777db5c194e14efeba16864be8dac966e24bc"]);
+let ProcessHits = DeviceProcessEvents
+| where Timestamp > ago(Lookback)
+| where SHA256 in (KnownSHA256) or ProcessCommandLine has_any (MaliciousGemNames) or (FileName =~ "main.exe" and FolderPath contains "\\Downloads\\")
+| extend HuntReason = case(SHA256 in (KnownSHA256),"Known StubMaker SHA256",ProcessCommandLine has_any (MaliciousGemNames),"Known malicious RubyGem referenced in process command line",FileName =~ "main.exe" and FolderPath contains "\\Downloads\\","main.exe executed from a user Downloads directory","StubMaker-related process activity")
+| project Timestamp,DeviceId,DeviceName,ReportId,EvidenceType="Process",HuntReason,FileName,FolderPath,SHA256,CommandLine=ProcessCommandLine,RemoteIP="",RemoteUrl="",RemotePort="",ParentProcess=InitiatingProcessFileName,Account=AccountName;
+let FileHits = DeviceFileEvents
+| where Timestamp > ago(Lookback)
+| where SHA256 in (KnownSHA256) or (FileName =~ "main.exe" and FolderPath contains "\\Downloads\\" and InitiatingProcessFileName in~ ("ruby.exe","rubyw.exe")) or (FileName in~ ("make_stub","make_stub.bat") and InitiatingProcessFileName in~ ("ruby.exe","rubyw.exe")) or FileOriginUrl contains "github.com/bebraz1/qPzM50V1AKG0rVlH" or FileOriginUrl contains "github-production-release-asset/1334756299"
+| extend HuntReason = case(SHA256 in (KnownSHA256),"Known StubMaker SHA256",FileName =~ "main.exe" and FolderPath contains "\\Downloads\\" and InitiatingProcessFileName in~ ("ruby.exe","rubyw.exe"),"Ruby-created main.exe in user Downloads directory",FileName in~ ("make_stub","make_stub.bat"),"StubMaker fake build artifact",FileOriginUrl contains "bebraz1/qPzM50V1AKG0rVlH","Known StubMaker GitHub payload source",FileOriginUrl contains "github-production-release-asset/1334756299","Known StubMaker GitHub release asset","StubMaker-related file activity")
+| project Timestamp,DeviceId,DeviceName,ReportId,EvidenceType="File",HuntReason,FileName,FolderPath,SHA256,CommandLine=InitiatingProcessCommandLine,RemoteIP=FileOriginIP,RemoteUrl=FileOriginUrl,RemotePort="",ParentProcess=InitiatingProcessFileName,Account=InitiatingProcessAccountName;
+let NetworkHits = DeviceNetworkEvents
+| where Timestamp > ago(Lookback)
+| where RemoteIP == "193.70.34.101" or RemoteUrl contains "dresslee.com" or RemoteUrl contains "bebraz1/qPzM50V1AKG0rVlH" or RemoteUrl contains "github-production-release-asset/1334756299" or ((RemoteUrl contains "upload.gofile.io" or RemoteUrl contains "api.ipify.org") and InitiatingProcessFileName =~ "main.exe")
+| extend HuntReason = case(RemoteIP == "193.70.34.101","Known StubMaker beacon/C2 infrastructure",RemoteUrl contains "dresslee.com","Known StubMaker exfiltration notification infrastructure",RemoteUrl contains "bebraz1/qPzM50V1AKG0rVlH","Known StubMaker GitHub payload location",RemoteUrl contains "github-production-release-asset/1334756299","Known StubMaker GitHub release asset",RemoteUrl contains "upload.gofile.io" and InitiatingProcessFileName =~ "main.exe","Possible StubMaker stolen-data upload to Gofile",RemoteUrl contains "api.ipify.org" and InitiatingProcessFileName =~ "main.exe","StubMaker-associated public IP discovery","StubMaker-related network activity")
+| project Timestamp,DeviceId,DeviceName,ReportId,EvidenceType="Network",HuntReason,FileName=InitiatingProcessFileName,FolderPath=InitiatingProcessFolderPath,SHA256=InitiatingProcessSHA256,CommandLine=InitiatingProcessCommandLine,RemoteIP,RemoteUrl,RemotePort=tostring(RemotePort),ParentProcess=InitiatingProcessParentFileName,Account=InitiatingProcessAccountName;
+union ProcessHits,FileHits,NetworkHits
+| order by Timestamp desc
