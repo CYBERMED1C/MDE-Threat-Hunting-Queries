@@ -2,16 +2,18 @@
 
 This repository contains Microsoft Defender for Endpoint threat hunting queries written in KQL.
 
-The queries are built from public reporting, security research, vendor reports, government advisories, and other publicly available / TLP:CLEAR sources.
+All content in this repository is based exclusively on publicly available, open-source information. Nothing in this repository is classified or derived from classified sources.
 
-Use them as needed for threat hunting, investigation, detection engineering, and defensive security operations.
+Sources may include public security research, vendor reports, government advisories, news reporting, and other open-source intelligence.
+
+**TLP:CLEAR**
+
+Use these queries for authorized threat hunting, investigation, detection engineering, and defensive security operations.
 
 **These queries are starting points — use your brain.**
 
-Review the logic, understand what the query is looking for, validate the results, and tune it for your own environment. A query returning a result does not automatically mean something is malicious.
+Review the logic, validate the results, and tune each query for your environment. A result does not automatically mean malicious activity.
 
-Threat intelligence changes, indicators become outdated, environments differ, and legitimate activity can look suspicious. Always use additional telemetry and context before making a determination or taking action.
+Threat intelligence changes, indicators become outdated, and legitimate activity can look suspicious. Always use additional telemetry and context before making a determination.
 
-All queries are intended for authorized defensive security use only.
-
-**In short: run the hunt, investigate the results, and think like an analyst.**
+**Run the hunt, investigate the results, and think like an analyst.**
