@@ -1,0 +1,51 @@
+// Potential Insider Data Exfiltration - Large Outbound Transfer Hunt
+// Description : Hunts for 500 MB or more of potentially staged data associated with outbound connections to public destinations using known file-transfer utilities or cloud/file-sharing services within the last 24 hours.
+// Author : CYBERMEDIC
+// Last updated : 2026-08-28
+// MITRE ATT&CK mapping : T1041 - Exfiltration Over C2 Channel | T1567.002 - Exfiltration to Cloud Storage | T1074.001 - Local Data Staging | T1560.001 - Archive via Utility
+// Notes : Outbound activity is required for a result. 500 MB is the minimum suspicious staged-data threshold. 1 GB is High and 5 GB is Critical. FileSize represents staged file size and should not be interpreted as confirmed bytes transmitted. Tune sanctioned cloud-storage domains, service accounts, file types, and approved transfer utilities for the environment.
+// Sources : DeviceFileEvents | DeviceNetworkEvents
+let SearchWindow = 24h;
+let SuspiciousBytes = 524288000;
+let HighBytes = 1073741824;
+let CriticalBytes = 5368709120;
+let StagedData = materialize(
+    DeviceFileEvents
+    | where Timestamp >= ago(SearchWindow)
+    | where ActionType in~ ("FileCreated", "FileModified", "FileRenamed")
+    | where FileSize > 0
+    | extend FileExtension = tolower(extract(@"\.([^.]+)$", 1, FileName))
+    | where FileExtension in~ ("zip", "7z", "rar", "tar", "gz", "tgz", "bz2", "xz", "csv", "xls", "xlsx", "xlsm", "doc", "docx", "ppt", "pptx", "pdf", "txt", "json", "xml", "yaml", "yml", "sql", "db", "sqlite", "pst", "ost", "msg", "eml", "pem", "key", "pfx", "p12")
+    | extend Account = iff(isnotempty(InitiatingProcessAccountUpn), InitiatingProcessAccountUpn, InitiatingProcessAccountName)
+    | where isnotempty(Account)
+    | where Account !in~ ("system", "local service", "network service")
+    | extend FullPath = strcat(FolderPath, "\\", FileName)
+    | summarize arg_max(Timestamp, *) by DeviceId, Account, FullPath
+    | summarize FirstStagedEvent=min(Timestamp), LastStagedEvent=max(Timestamp), StagedBytes=sum(FileSize), StagedFileCount=dcount(FullPath), StagedFiles=make_set(FullPath, 25), StagingProcesses=make_set(InitiatingProcessFileName, 15) by DeviceId, DeviceName, Account
+    | where StagedBytes >= SuspiciousBytes
+);
+let OutboundActivity = materialize(
+    DeviceNetworkEvents
+    | where Timestamp >= ago(SearchWindow)
+    | where ActionType =~ "ConnectionSuccess"
+    | where RemoteIPType =~ "Public"
+    | extend Account = iff(isnotempty(InitiatingProcessAccountUpn), InitiatingProcessAccountUpn, InitiatingProcessAccountName)
+    | where isnotempty(Account)
+    | where Account !in~ ("system", "local service", "network service")
+    | extend ProcessName = tolower(InitiatingProcessFileName)
+    | extend Destination = tolower(iff(isnotempty(RemoteUrl), RemoteUrl, RemoteIP))
+    | extend KnownTransferProcess = ProcessName in~ ("rclone.exe", "winscp.exe", "filezilla.exe", "curl.exe", "wget.exe", "scp.exe", "sftp.exe", "ftp.exe", "azcopy.exe", "rsync.exe")
+    | extend KnownCloudDestination = Destination has_any ("dropbox.com", "dropboxapi.com", "drive.google.com", "googleusercontent.com", "mega.nz", "wetransfer.com", "box.com", "boxcloud.com", "drive.proton.me", "protondrive", "pcloud.com", "mediafire.com", "gofile.io", "file.io", "transfer.sh", "send-anywhere.com", "onedrive.live.com", "1drv.ms", "icloud.com")
+    | where KnownTransferProcess or KnownCloudDestination
+    | project OutboundTimestamp=Timestamp, DeviceId, DeviceName, Account, ProcessName, InitiatingProcessCommandLine, RemoteIP, RemotePort, RemoteUrl, Destination, Protocol, KnownTransferProcess, KnownCloudDestination
+);
+StagedData
+| join kind=inner OutboundActivity on DeviceId, Account
+| where OutboundTimestamp >= FirstStagedEvent
+| summarize FirstOutboundConnection=min(OutboundTimestamp), LastOutboundConnection=max(OutboundTimestamp), OutboundConnectionCount=count(), OutboundDestinations=make_set(Destination, 25), RemoteIPs=make_set(RemoteIP, 25), RemotePorts=make_set(RemotePort, 15), TransferProcesses=make_set(ProcessName, 15), TransferCommands=make_set(InitiatingProcessCommandLine, 15), CloudDestinationObserved=max(toint(KnownCloudDestination)), TransferUtilityObserved=max(toint(KnownTransferProcess)) by DeviceId, DeviceName, Account, FirstStagedEvent, LastStagedEvent, StagedBytes, StagedFileCount, StagedFiles, StagingProcesses
+| extend StagedSizeMB=round(todouble(StagedBytes) / 1024 / 1024, 2)
+| extend StagedSizeGB=round(todouble(StagedBytes) / 1024 / 1024 / 1024, 2)
+| extend Severity=case(StagedBytes >= CriticalBytes, "Critical", StagedBytes >= HighBytes, "High", "Suspicious")
+| extend HuntAssessment=case(CloudDestinationObserved == 1 and TransferUtilityObserved == 1, "Potential Exfiltration - Transfer utility to cloud/file-sharing destination", CloudDestinationObserved == 1, "Potential Exfiltration - Outbound connection to cloud/file-sharing destination", TransferUtilityObserved == 1, "Potential Exfiltration - Outbound file-transfer utility", "Potential Exfiltration")
+| project FirstStagedEvent, LastStagedEvent, FirstOutboundConnection, LastOutboundConnection, DeviceName, Account, Severity, StagedSizeMB, StagedSizeGB, StagedFileCount, OutboundConnectionCount, HuntAssessment, StagingProcesses, TransferProcesses, OutboundDestinations, RemoteIPs, RemotePorts, StagedFiles, TransferCommands
+| order by StagedBytes desc, OutboundConnectionCount desc
