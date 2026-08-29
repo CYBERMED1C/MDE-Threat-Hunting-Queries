@@ -1,0 +1,23 @@
+// Query name: Superior Malicious Chrome & Edge Extension Hunt
+// Description: Detects known malicious browser extensions and network infrastructure associated with the Superior wallet-draining and credential-stealing campaign.
+// Author : CYBERMEDIC
+// Last updated: 2026-08-29
+// MITRE Att&ck mapping: T1176 Browser Extensions, T1071.001 Web Protocols, T1539 Steal Web Session Cookie, T1056 Input Capture
+// notes: Searches 90 days of MDE telemetry for known extension IDs and C2/exfiltration/payload domains.
+// Sources: The Hacker News / Socket Threat Research
+// https://thehackernews.com/2026/08/19-chrome-and-edge-extensions-found.html
+let MaliciousExtensionIds = dynamic(["pkoccklolohdacbfooifnpebakpbeipc","fegckejpfnlmfgkfjpinlbgmeeijjkel","kdenlnncndfnhkognokgfpabgkgehodd","jamminefolhgepgihbmcjjhgldbfcikp","inmkjedjdhgpknjogbjomhnbgdccckkg","fcgdejjichpgfaaafflplhfijcnieopb","cfpnjdbpojpcongfaefcamjbaolpelcd","aapdalkmclfaahehnmicbglkohkldhne","dkdadldmiefjldmegbjbnhhfddnkhlhm","fjmlhlkccegopebcllcmafahkmeejpph","iekoapohahgmogbagegmcgplbkikcgke","ahpnnnjbnfbhoikhohglpohnoocjcoco","oeacadlaclegkkkdehjmiifnjhcekclj","jmlgannjlbliikgcaieomgmcnfplglea","lhmcajhgadanidbopgaoobjlldegjmke","gfackggoapepdmnjnkblogdcjpgcjiak","hfijkbdkpidafdbeebnnkhfccildbcle","pcngchfbfgejllcbhmeadjhiebebiome","aodkjdeghbjiaienipfjkbpcikkacbcp"]);
+let MaliciousDomains = dynamic(["active-enable-right-click.top","api.enable-right-click.click","enable-right-click.click","payload.siteinsight.bond","api.extensionanalyticspro.top","password-protect-pdf.com","privatecryptonewsreader.pro","cryptoratesfiatconverter.pro","cryptopricebadgequickglance.pro","ws.site-signal.top","content.resonanceweb.top","api.creativelibrary.top","api.codefilearc.net","ws.seopulsepro.sbs","relay.seopulsepro.sbs","defipulsetracker.pro","blockfolioaddressmonitor.pro","pricealarmsvolatilitywarnings.pro","extension.io-safe.icu","feedback.feedx-ray.top","lucky-random.sbs","pipi.saghirmohamed19.workers.dev","mimi.saghirmohamed19.workers.dev","cookie-whitelist.top","whale-alert.art","ggle-analytics.com"]);
+union
+(DeviceNetworkEvents
+| where Timestamp > ago(90d)
+| where InitiatingProcessFileName in~ ("chrome.exe","msedge.exe")
+| where RemoteUrl in~ (MaliciousDomains)
+| extend DetectionType="Known Superior Network IOC", Indicator=RemoteUrl
+| project Timestamp,DeviceName,DetectionType,Indicator,InitiatingProcessFileName,InitiatingProcessAccountName,RemoteIP,RemotePort),
+(DeviceFileEvents
+| where Timestamp > ago(90d)
+| where FolderPath has_any (MaliciousExtensionIds)
+| extend DetectionType="Known Superior Extension ID", Indicator=FolderPath
+| project Timestamp,DeviceName,DetectionType,Indicator,InitiatingProcessFileName,InitiatingProcessAccountName,RemoteIP="",RemotePort=long(null))
+| sort by Timestamp desc
