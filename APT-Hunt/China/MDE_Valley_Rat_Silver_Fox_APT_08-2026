@@ -1,0 +1,37 @@
+// ValleyRAT / Winos 4.0 - Silver Fox Activity
+// Hunts for ValleyRAT IOCs, QN Wallpaper DLL sideloading, Defender tampering, persistence, elevation, and C2 traffic.
+// Author : CYBERMEDIC
+// Last updated: 2026-08-31
+// MITRE Att&ck mapping: T1574.002, T1562.001, T1547.001, T1548, T1071, T1055
+// notes: Focuses on the August 2026 ValleyRAT campaign using signed QN Wallpaper software and malicious libcef.dll sideloading.
+// Sources: The Hacker News / Kaspersky Securelist
+let lookback = 30d;
+let BadMD5 = dynamic(["c24e99f9437feacaa63766a3cde3fe3d","07ddbbe2c71c45577a7a4fbcdba0df91","8a626d844943da3456b044f38deae3a2"]);
+union
+(DeviceFileEvents
+| where Timestamp >= ago(lookback)
+| where set_has_element(BadMD5, MD5) or FolderPath contains @"\QNWallpaper\5.4.0.1662\" or FileName in~ ("FS_SETUP_DD_173.exe","FS_SETUP_GG_173.exe","FS_SETUP_HY_173.exe","PeLoader")
+| extend Detection="ValleyRAT File / Hash / Path"
+| project Timestamp,DeviceName,Detection,FileName,FolderPath,MD5,RemoteIP="",RemotePort="",RemoteUrl="",RegistryKey="",RegistryValueName="",RegistryValueData="",InitiatingProcessFileName,InitiatingProcessCommandLine),
+(DeviceImageLoadEvents
+| where Timestamp >= ago(lookback)
+| where set_has_element(BadMD5, MD5) or (FileName =~ "libcef.dll" and InitiatingProcessFileName in~ ("QnWallpaper.exe","QnwPlayer.exe"))
+| extend Detection="ValleyRAT DLL Sideloading"
+| project Timestamp,DeviceName,Detection,FileName,FolderPath,MD5,RemoteIP="",RemotePort="",RemoteUrl="",RegistryKey="",RegistryValueName="",RegistryValueData="",InitiatingProcessFileName,InitiatingProcessCommandLine),
+(DeviceProcessEvents
+| where Timestamp >= ago(lookback)
+| where set_has_element(BadMD5, MD5) or FileName in~ ("QnWallpaper.exe","QnwPlayer.exe","FS_SETUP_DD_173.exe","FS_SETUP_GG_173.exe","FS_SETUP_HY_173.exe") or (FileName =~ "runas.exe" and (ProcessCommandLine has_any ("QnWallpaper","QnwPlayer") or InitiatingProcessFileName in~ ("QnWallpaper.exe","QnwPlayer.exe")))
+| where FolderPath contains @"\QNWallpaper\" or set_has_element(BadMD5, MD5) or FileName startswith "FS_SETUP_" or FileName =~ "runas.exe"
+| extend Detection="ValleyRAT Process / Elevation"
+| project Timestamp,DeviceName,Detection,FileName,FolderPath,MD5,RemoteIP="",RemotePort="",RemoteUrl="",RegistryKey="",RegistryValueName="",RegistryValueData="",InitiatingProcessFileName,InitiatingProcessCommandLine),
+(DeviceRegistryEvents
+| where Timestamp >= ago(lookback)
+| where (RegistryValueName =~ "DisableAntiSpyware" and RegistryKey contains @"Windows Defender") or ((RegistryKey contains @"\CurrentVersion\Run" or RegistryKey contains @"\CurrentVersion\RunOnce") and RegistryValueData contains "QNWallpaper")
+| extend Detection="ValleyRAT Defender Tampering / Persistence"
+| project Timestamp,DeviceName,Detection,FileName="",FolderPath="",MD5="",RemoteIP="",RemotePort="",RemoteUrl="",RegistryKey,RegistryValueName,RegistryValueData,InitiatingProcessFileName,InitiatingProcessCommandLine),
+(DeviceNetworkEvents
+| where Timestamp >= ago(lookback)
+| where (RemoteIP == "103.45.66.18" and RemotePort in (441,442,443)) or (RemoteIP == "192.253.225.173" and RemotePort in (6666,8888)) or RemoteUrl contains "qnwallpaper.keansoft.cn" or (RemoteUrl contains "meeting.tencent.com" and InitiatingProcessFileName startswith "FS_SETUP_")
+| extend Detection="ValleyRAT Network / C2"
+| project Timestamp,DeviceName,Detection,FileName="",FolderPath="",MD5="",RemoteIP,RemotePort=tostring(RemotePort),RemoteUrl,RegistryKey="",RegistryValueName="",RegistryValueData="",InitiatingProcessFileName,InitiatingProcessCommandLine)
+| sort by Timestamp desc
