@@ -1,5 +1,7 @@
 // AI Analysis to download and install MATCHBOIL payloads
-// Source: https://thehackernews.com/2026/09/russia-aligned-uac-0099-plants-nuclear.htmllet timeframe = 30d;
+// Source: https://thehackernews.com/2026/09/russia-aligned-uac-0099-plants-nuclear.html
+// False positves is many, adjust as needed for this query
+let timeframe = 30d;
 let GuardBreakerVBS = DeviceProcessEvents
 | where TimeGenerated >= ago(timeframe)
 | where ProcessCommandLine has_any ("wscript", "cscript") and ProcessCommandLine has_any (".vbs", ".vbe")
