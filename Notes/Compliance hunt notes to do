@@ -1,0 +1,36 @@
+Compliance Hunts
+Unauthorized applications
+Outdated/vulnerable software
+Remote-access tools: AnyDesk, TeamViewer, RustDesk, ScreenConnect, etc.
+P2P/torrent clients
+VPN/proxy software
+Password crackers/security tools where not authorized
+Personal cloud-sync apps
+EOL software such as old Java/.NET/Python versions
+
+
+Hack tools
+
+
+
+Certificates
+
+Unauthorized root certificates
+Self-signed certificates
+Expired certificates
+User-added trusted roots
+Machine certificate anomalies
+
+
+File sharing
+
+New SMB shares
+Everyone permissions
+Administrative shares modified
+Sensitive folders shared
+Local IIS/FTP servers
+
+
+
+
+
