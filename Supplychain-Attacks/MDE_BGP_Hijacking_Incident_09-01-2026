@@ -1,0 +1,24 @@
+let timeframe = 30d;
+let malicious_ips = dynamic(["31.77.220.138", "193.32.127.248"]);
+let malicious_domains = dynamic(["cdn.nerat.cc", "connect.ne-rat.xyz", "web.ne-rat.xyz"]);
+let malicious_files = dynamic(["widdow.jar", "jre-runtime.dat", ".vz_svc_done", "java-jre-update.service"]);
+let malicious_hashes = dynamic(["b81a4e1fab9fc4e404d57224fe71e2c143aa93942bd46998789bdc944a7870c7"]);
+let malicious_users = dynamic(["proxyuser"]);
+let network_activity = DeviceNetworkEvents
+| where Timestamp >= ago(timeframe)
+| where RemoteIP in (malicious_ips) or RemoteUrl has_any (malicious_domains) or RemotePort == 2025
+| project Timestamp, DeviceName, ActionType, RemoteIP, RemotePort, RemoteUrl, InitiatingProcessFileName, InitiatingProcessCommandLine, Activity = "Network Connection";
+let file_activity = DeviceFileEvents
+| where Timestamp >= ago(timeframe)
+| where FileName in~ (malicious_files) or SHA256 in (malicious_hashes) or FolderPath has "/usr/lib/jvm/.cache/"
+| project Timestamp, DeviceName, ActionType, RemoteIP = "", RemotePort = int(null), RemoteUrl = "", InitiatingProcessFileName, InitiatingProcessCommandLine, Activity = strcat("File Activity: ", FileName);
+let process_activity = DeviceProcessEvents
+| where Timestamp >= ago(timeframe)
+| where ProcessCommandLine has_any ("widdow.jar", "jre-runtime.dat", "java-jre-update.service") or AccountName in~ (malicious_users)
+| project Timestamp, DeviceName, ActionType, RemoteIP = "", RemotePort = int(null), RemoteUrl = "", InitiatingProcessFileName = FileName, InitiatingProcessCommandLine = ProcessCommandLine, Activity = "Process Execution";
+let account_logons = DeviceLogonEvents
+| where Timestamp >= ago(timeframe)
+| where AccountName in~ (malicious_users) or RemoteIP in (malicious_ips)
+| project Timestamp, DeviceName, ActionType, RemoteIP, RemotePort = RemotePort, RemoteUrl = "", InitiatingProcessFileName = "", InitiatingProcessCommandLine = "", Activity = strcat("Logon: ", AccountName);
+union isfuzzy=true network_activity, file_activity, process_activity, account_logons
+| sort by Timestamp desc
