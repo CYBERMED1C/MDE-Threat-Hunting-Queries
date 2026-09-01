@@ -1,0 +1,21 @@
+// AI Analysis to download and install MATCHBOIL payloads
+// Source: https://thehackernews.com/2026/09/russia-aligned-uac-0099-plants-nuclear.htmllet timeframe = 30d;
+let GuardBreakerVBS = DeviceProcessEvents
+| where TimeGenerated >= ago(timeframe)
+| where ProcessCommandLine has_any ("wscript", "cscript") and ProcessCommandLine has_any (".vbs", ".vbe")
+| where ProcessCommandLine has_any ("nuclear weapon", "make nuclear", "EasySend", "Evernote.zip")
+| project TimeGenerated, DeviceName, ActionType, FileName, ProcessCommandLine, InitiatingProcessCommandLine, AccountName;
+let MatchboilExecution = DeviceProcessEvents
+| where TimeGenerated >= ago(timeframe)
+| where FileName =~ "RemoteLibUpdater.exe" or ProcessCommandLine has "RemoteLibUpdater.exe" or ProcessCommandLine has "InitTest.dll" or ProcessCommandLine has "NppExport.dll"
+| project TimeGenerated, DeviceName, ActionType, FileName, ProcessCommandLine, InitiatingProcessCommandLine, AccountName;
+let PayloadFileDrops = DeviceFileEvents
+| where TimeGenerated >= ago(timeframe)
+| where FileName in~ ("InitTest.dll", "RemoteLibUpdater.exe", "NppExport.dll", "updater.rar") or (FileName endswith ".vbs" and FolderPath has_any ("Downloads", "Temp", "AppData"))
+| project TimeGenerated, DeviceName, ActionType, FileName, FolderPath, SHA256, InitiatingProcessCommandLine, RequestAccountName=InitiatingProcessAccountName;
+let ScheduledTaskPersistence = DeviceProcessEvents
+| where TimeGenerated >= ago(timeframe)
+| where ProcessCommandLine has "schtasks" and ProcessCommandLine has_all ("/create", "RemoteLibUpdater.exe")
+| project TimeGenerated, DeviceName, ActionType, FileName, ProcessCommandLine, InitiatingProcessCommandLine, AccountName;
+union isfuzzy=true GuardBreakerVBS, MatchboilExecution, PayloadFileDrops, ScheduledTaskPersistence
+| sort by TimeGenerated desc
