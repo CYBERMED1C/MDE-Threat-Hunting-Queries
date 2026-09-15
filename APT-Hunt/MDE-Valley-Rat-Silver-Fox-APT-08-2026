@@ -1,6 +1,5 @@
 // ValleyRAT / Winos 4.0 - Silver Fox Activity
 // Hunts for ValleyRAT IOCs, QN Wallpaper DLL sideloading, Defender tampering, persistence, elevation, and C2 traffic.
-// Author : CYBERMEDIC
 // Last updated: 2026-08-31
 // MITRE Att&ck mapping: T1574.002, T1562.001, T1547.001, T1548, T1071, T1055
 // notes: Focuses on the August 2026 ValleyRAT campaign using signed QN Wallpaper software and malicious libcef.dll sideloading.
