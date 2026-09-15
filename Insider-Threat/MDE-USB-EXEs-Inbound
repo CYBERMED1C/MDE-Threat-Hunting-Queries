@@ -1,5 +1,4 @@
 // Detection of files copied/created from removable storage  USB
-// Author : CYBERMEDIC
 // Last updated : 2026-08-31
 DeviceFileEvents
 | where Timestamp >= ago(30d)
