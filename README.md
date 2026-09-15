@@ -1,7 +1,7 @@
 # MDE Threat Hunting KQL Repository
 
 ## Overview
-This repository contains a curated collection of Kusto Query Language (KQL) queries engineered specifically for Microsoft Defender for Endpoint (MDE) and Microsoft Defender XDR Advanced Hunting. The queries focus on proactive threat hunting, detecting emerging CVE exploitation, identifying Living-off-the-Land (LotL) tradecraft, and mapping adversary activity to the MITRE ATT&CK framework.
+This repository contains a curated collection of Kusto Query Language (KQL) queries engineered specifically for Microsoft Defender for Endpoint (MDE) and Microsoft Defender XDR Advanced Hunting. The queries focus on proactive threat hunting, detecting emerging CVE exploitation and mapping adversary activity.
 
 ---
 
