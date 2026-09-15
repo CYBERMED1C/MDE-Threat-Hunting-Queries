@@ -2,7 +2,6 @@
 // Source: https://securelist.com/project-cav3rn-continues/120991/
 // Source: https://thehackernews.com/2026/08/cavern-c2-uses-dns-and-google-apps.html
 // Hunt coverage: Published CAV3RN MD5 hashes, StudioTikva infrastructure, DNS-based C2 patterns, and correlated Google Apps Script activity
-// Author: CYBERMEDIC
 let lookback = 30d;
 let CavernMD5 = dynamic([
     "904784c9943d019da332bea2cd03996f",
