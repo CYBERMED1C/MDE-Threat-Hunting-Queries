@@ -1,6 +1,5 @@
 // Potential Insider Data Exfiltration - Large Outbound Transfer Hunt
 // Description : Hunts for 500 MB or more of potentially staged data associated with outbound connections to public destinations using known file-transfer utilities or cloud/file-sharing services within the last 24 hours.
-// Author : CYBERMEDIC
 // Last updated : 2026-08-28
 // MITRE ATT&CK mapping : T1041 - Exfiltration Over C2 Channel | T1567.002 - Exfiltration to Cloud Storage | T1074.001 - Local Data Staging | T1560.001 - Archive via Utility
 // Notes : Outbound activity is required for a result. 500 MB is the minimum suspicious staged-data threshold. 1 GB is High and 5 GB is Critical. FileSize represents staged file size and should not be interpreted as confirmed bytes transmitted. Tune sanctioned cloud-storage domains, service accounts, file types, and approved transfer utilities for the environment.
