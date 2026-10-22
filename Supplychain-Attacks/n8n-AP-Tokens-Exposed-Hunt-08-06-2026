@@ -58,37 +58,27 @@ union isfuzzy=true
             or SearchData contains "n8n_api_key"
             or SearchData contains "n8n-api-key",
             "n8n API key reference or possible token exposure",
-
         SearchData contains "/api/v1/credentials",
             "n8n credential enumeration or access",
-
         SearchData contains "/api/v1/executions"
             and SearchData contains "includedata=true",
             "n8n execution data retrieved with includeData=true",
-
         SearchData contains "/api/v1/variables",
             "n8n variable enumeration or access",
-
         SearchData contains "/api/v1/users",
             "n8n user enumeration",
-
         SearchData contains "/api/v1/audit",
             "n8n security audit API access",
-
         SearchData contains "/api/v1/data-tables",
             "n8n data-table access",
-
         SearchData contains "/api/v1/workflows"
             and SearchData matches regex
                 @"(-x|--request|-method)\s*(post|put|patch|delete)",
             "n8n workflow creation, modification, activation, or deletion",
-
         SearchData contains "/api/v1/workflows",
             "n8n workflow API access",
-
         SearchData contains "n8n",
             "n8n-related command-line activity",
-
         "n8n indicator detected"
     )
     | extend Severity = case(
@@ -154,29 +144,21 @@ union isfuzzy=true
             or SearchData contains "n8n_api_key"
             or SearchData contains "n8n-api-key",
             "Possible n8n API key used in network activity",
-
         SearchData contains "/api/v1/executions"
             and SearchData contains "includedata=true",
             "Complete n8n execution data requested",
-
         SearchData contains "/api/v1/credentials",
             "n8n credentials API accessed",
-
         SearchData contains "/api/v1/variables",
             "n8n variables API accessed",
-
         SearchData contains "/api/v1/users",
             "n8n users API accessed",
-
         SearchData contains "/api/v1/audit",
             "n8n audit API accessed",
-
         SearchData contains "/api/v1/data-tables",
             "n8n data-table API accessed",
-
         SearchData contains "/api/v1/workflows",
             "n8n workflow API accessed",
-
         "Other n8n-related network activity"
     )
     | extend Severity = case(
@@ -240,14 +222,11 @@ union isfuzzy=true
     | extend MatchReason = case(
         SearchData contains ".env",
             "Potential n8n secret or API token stored in an environment file",
-
         SearchData contains "settings.local.json"
             or SearchData contains "settings.json",
             "Potential n8n token stored in an application settings file",
-
         SearchData contains "docker-compose",
             "n8n container configuration file activity",
-
         "n8n-related file activity"
     )
     | extend Severity = case(
@@ -296,16 +275,12 @@ union isfuzzy=true
             or SearchData contains "n8n_api_key"
             or SearchData contains "n8n-api-key",
             "n8n API key indicator present in device telemetry",
-
         SearchData contains "/api/v1/credentials",
             "n8n credential API indicator present",
-
         SearchData contains "/api/v1/executions",
             "n8n execution API indicator present",
-
         SearchData contains "/api/v1/workflows",
             "n8n workflow API indicator present",
-
         "Other n8n artifact present in device telemetry"
     )
     | extend Severity = case(
