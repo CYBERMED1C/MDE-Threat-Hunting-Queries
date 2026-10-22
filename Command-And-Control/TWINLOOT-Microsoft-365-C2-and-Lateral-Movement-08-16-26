@@ -4,7 +4,7 @@
 // Source: https://thehackernews.com/2026/08/twinloot-abuses-sharepoint-and-teams-to.html
 // Primary Research: https://www.ontinue.com/resource/python-implant-hiding-its-entire-c2-inside-microsoft-365-azure/
 // Primary IOC Reference: https://github.com/ontinue-research/threat-intel-iocs/blob/main/Public/2026-07-27-TWINLOOT-IOCs.md
-// Author: Robert Boettger - AKA CYBERMEDIC
+// Author: CYBERMEDIC
 let Lookback = 30d;
 let PowerShellDelivery = DeviceProcessEvents
 | where Timestamp > ago(Lookback)
