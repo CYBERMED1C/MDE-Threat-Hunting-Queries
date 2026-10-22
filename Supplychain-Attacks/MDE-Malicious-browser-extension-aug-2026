@@ -1,6 +1,6 @@
 // Query name: Superior Malicious Chrome & Edge Extension Hunt
 // Description: Detects known malicious browser extensions and network infrastructure associated with the Superior wallet-draining and credential-stealing campaign.
-// Author : CYBERMEDIC
+// Author: CYBERMEDIC
 // Last updated: 2026-08-29
 // MITRE Att&ck mapping: T1176 Browser Extensions, T1071.001 Web Protocols, T1539 Steal Web Session Cookie, T1056 Input Capture
 // notes: Searches 90 days of MDE telemetry for known extension IDs and C2/exfiltration/payload domains.
