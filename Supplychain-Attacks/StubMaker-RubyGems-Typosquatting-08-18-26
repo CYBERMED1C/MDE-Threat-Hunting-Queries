@@ -3,7 +3,7 @@
 // Description: Hunts for known indicators and behavioral TTPs associated with the StubMaker RubyGems typosquatting campaign delivering a Windows credential and cryptocurrency infostealer.
 // Source: https://thehackernews.com/2026/08/16-typosquatted-rubygems-packages-steal.html
 // Source: https://opensourcemalware.com/blog/stubmaker-rubygems-windows-infostealer
-// Author: Robert Boettger - AKA: CYBERMEDIC
+// Author: CYBERMEDIC
 let Lookback = 30d;
 let MaliciousGemNames = dynamic(["ubnuler","ubnlder","ri18nr","reaker","rakier","orakw","joxn","ise18n","ioe18n","ie18u","iai8n","i1l8n","i18om","activesupmport","brumdler","brundlef"]);
 let KnownSHA256 = dynamic(["a280b369c95b04530af11598f15a58328722af0325509fe1c55028c3fa873111","2edf1494951ea52eb86c606212668822081b3c589b821e8ec33cde59b65141a7","6f088ade49456db2422c3edfbb9998f4a3e9cce7c4c00a7279fb45d672a82b7d","1afff50ca4064310d3492c652e1c3168216dcb42063e0b26c223038db46b8731","67719fa6fcaa97936bf678565d6777db5c194e14efeba16864be8dac966e24bc"]);
