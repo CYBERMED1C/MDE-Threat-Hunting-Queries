@@ -1,7 +1,7 @@
 // n8n API token exposure and abuse hunt
 // Broad organizational hunt — no n8n hostname/domain required
 // Source: https://thehackernews.com/2026/08/leaked-n8n-api-tokens-exposed-live.html
-// Author: Robert Boettger - AKA CYBERMEDIC	
+// Author: CYBERMEDIC
 // The hunt should inspect all available MDE telemetry for token exposure, and
 // API enumeration, workflow manipulation, credential access, and suspicious execution
 let Lookback = 30d;
